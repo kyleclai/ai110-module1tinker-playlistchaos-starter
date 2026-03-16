@@ -1,3 +1,21 @@
+# Intended Behavior Overview
+
+# To help you identify what is "broken" versus what is "intentional," use these rules as your benchmark for how the app should function in a perfect state:
+
+
+# Search Functionality:
+# The search bar should be case-insensitive and perform a partial match against the selected field (e.g., searching "AC" should find "AC/DC").
+# It should return all songs where the query string is contained within the song's attribute.
+# Playlist Statistics:
+# Total Songs: Should represent the unique count of all songs across all categories.
+# Average Energy: Should be the mathematical average of the energy levels of all songs in the system.
+# Hype Ratio: Should represent the percentage of "Hype" songs relative to the total number of songs.
+# Lucky Pick:
+# When a user selects "Hype" or "Chill," the app must only pick a song from that specific playlist.
+# Selecting "Any" should pull a random song from the combined pool of Hype and Chill (and ideally Mixed).
+# Data Normalization:
+# All user input (titles, artists, genres) should be trimmed of leading/trailing whitespace and handled consistently (e.g., artists and genres converted to lowercase for comparison) to prevent duplicate or mismatched entries.
+
 from typing import Dict, List, Optional, Tuple
 
 Song = Dict[str, object]
@@ -56,9 +74,14 @@ def normalize_song(raw: Song) -> Song:
         "tags": tags,
     }
 
+# Song Classification (The "Mood" Engine):
+# Hype: Energy is greater than or equal to the hype_min_energy (default 7), if its genre matches the user's favorite_genre, or if the genre contains "hype" keywords (rock, punk, party).
+# Chill: A song should be classified as "Chill" if its energy is less than or equal to the chill_max_energy (default 3) or if the title contains "chill" keywords (lofi, ambient, sleep).
+# Mixed: Any song that does not strictly meet the "Hype" or "Chill" criteria should fall into the "Mixed" playlist.
 
 def classify_song(song: Song, profile: Dict[str, object]) -> str:
     """Return a mood label given a song and user profile."""
+    # ('song1', [])
     energy = song.get("energy", 0)
     genre = song.get("genre", "")
     title = song.get("title", "")
@@ -116,12 +139,12 @@ def compute_playlist_stats(playlists: PlaylistMap) -> Dict[str, object]:
     chill = playlists.get("Chill", [])
     mixed = playlists.get("Mixed", [])
 
-    total = len(hype)
+    total = len(all_songs)  # Fix: denominator should be all songs, not just hype
     hype_ratio = len(hype) / total if total > 0 else 0.0
 
     avg_energy = 0.0
     if all_songs:
-        total_energy = sum(song.get("energy", 0) for song in hype)
+        total_energy = sum(song.get("energy", 0) for song in all_songs)  # Fix: sum all songs, not just hype
         avg_energy = total_energy / len(all_songs)
 
     top_artist, top_count = most_common_artist(all_songs)
@@ -168,7 +191,7 @@ def search_songs(
 
     for song in songs:
         value = str(song.get(field, "")).lower()
-        if value and value in q:
+        if value and q in value:  # Fix: check if query is in value, not value in query
             filtered.append(song)
 
     return filtered
@@ -184,7 +207,7 @@ def lucky_pick(
     elif mode == "chill":
         songs = playlists.get("Chill", [])
     else:
-        songs = playlists.get("Hype", []) + playlists.get("Chill", [])
+        songs = playlists.get("Hype", []) + playlists.get("Chill", []) + playlists.get("Mixed", [])  # Fix: include Mixed in "any" pool
 
     return random_choice_or_none(songs)
 
@@ -193,6 +216,8 @@ def random_choice_or_none(songs: List[Song]) -> Optional[Song]:
     """Return a random song or None."""
     import random
 
+    if not songs:  # Fix: guard against empty list to avoid IndexError
+        return None
     return random.choice(songs)
 
 
